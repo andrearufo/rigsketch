@@ -1,11 +1,11 @@
 // Rigsketch editor: library, canvas interactions, inspector, undo, import/export.
 import { renderRig, renderAsset, exportSVG, jackWorld, FINISHES, DEFS, esc } from './draw.js';
-import { emptyRig, parseRig, newId } from './rig.js';
+import { emptyRig, parseRig, newId, GRID } from './rig.js';
+import { moveSegment } from './route.js';
 
 const REPO = 'https://github.com/andrearufo/rigsketch';
 const EXAMPLE = 'examples/classic-rock.rig.json';
 const KEY = 'rigsketch:rig';
-const GRID = 10;
 const CATS = [['all', 'All'], ['guitar', 'Guitars'], ['pedal', 'Pedals'], ['amp', 'Amps & cabs'], ['fx', 'Multi-FX & rack'], ['misc', 'Other']];
 
 const $ = s => document.querySelector(s);
@@ -14,6 +14,7 @@ const catalog = await (await fetch('assets/catalog.json')).json();
 const byId = Object.fromEntries(catalog.map(a => [a.id, a]));
 document.body.insertAdjacentHTML('beforeend', `<svg width="0" height="0" style="position:absolute" aria-hidden="true">${DEFS}</svg>`);
 
+const last = {}; // routes from the latest render, for dragging cable segments
 let rig, saved, hist = [], fut = [], sel = null, temp = null, drag = null, cat = 'all';
 const view = { x: 0, y: 0, s: 1 };
 let userView = false; // once the user pans or zooms, stop auto-fitting on resize
@@ -50,14 +51,14 @@ function selected() {
   if (!sel) return rig;
   if (sel.kind === 'item') return find(sel.id);
   if (sel.kind === 'cable') return rig.cables[sel.i];
-  return rig.legend;
+  return rig;
 }
 function select(s) { sel = s; inspector(); }
 
 // ---------- canvas ----------
 let raf = 0;
 function draw() {
-  if (!raf) raf = requestAnimationFrame(() => { raf = 0; svg.innerHTML = renderRig(rig, byId, { ui: true, sel, temp }); });
+  if (!raf) raf = requestAnimationFrame(() => { raf = 0; svg.innerHTML = renderRig(rig, byId, { ui: true, sel, temp, out: last }); });
 }
 function applyView() {
   if (!svg.clientWidth || !view.s) return;
@@ -91,7 +92,7 @@ svg.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
   const p = toWorld(e), t = e.target;
   svg.setPointerCapture(e.pointerId);
-  const jack = t.closest('[data-jack]'), item = t.closest('[data-id]'), cable = t.closest('[data-cable]'), leg = t.closest('[data-legend]');
+  const jack = t.closest('[data-jack]'), item = t.closest('[data-id]'), cable = t.closest('[data-cable]'), seg = t.closest('[data-seg]');
   if (jack) {
     const it = find(jack.dataset.id);
     drag = { kind: 'wire', id: it.id, type: jack.dataset.jack };
@@ -100,9 +101,10 @@ svg.addEventListener('pointerdown', e => {
     const it = find(item.dataset.id);
     select({ kind: 'item', id: it.id });
     drag = { kind: 'move', obj: it, dx: p.x - it.x, dy: p.y - it.y };
-  } else if (leg) {
-    select({ kind: 'legend' });
-    drag = { kind: 'move', obj: rig.legend, dx: p.x - rig.legend.x, dy: p.y - rig.legend.y };
+  } else if (seg && last.routes?.[+cable.dataset.cable]) {
+    const i = +cable.dataset.cable, full = last.routes[i], k = +seg.dataset.seg;
+    select({ kind: 'cable', i });
+    drag = { kind: 'seg', c: rig.cables[i], full, k, horiz: full[k].y === full[k + 1].y, p, d: 0, had: !!rig.cables[i].points };
   } else if (cable) {
     select({ kind: 'cable', i: +cable.dataset.cable });
   } else {
@@ -121,6 +123,14 @@ svg.addEventListener('pointermove', e => {
   }
   const p = toWorld(e);
   if (drag.kind === 'move') { drag.obj.x = snap(p.x - drag.dx); drag.obj.y = snap(p.y - drag.dy); }
+  else if (drag.kind === 'seg') {
+    const d = snap(drag.horiz ? p.y - drag.p.y : p.x - drag.p.x);
+    if (d === drag.d) return;
+    drag.d = d;
+    const pts = moveSegment(drag.full, drag.k, d);
+    if (pts) drag.c.points = pts;
+    if (!d && !drag.had) delete drag.c.points;
+  }
   else { temp.x = p.x; temp.y = p.y; }
   draw();
 });
@@ -136,6 +146,7 @@ svg.addEventListener('pointerup', e => {
     }
     temp = null;
   }
+  if (drag?.kind === 'seg') inspector();
   drag = null;
   commit(); draw();
 });
@@ -173,7 +184,6 @@ function remove() {
     rig.items = rig.items.filter(i => i.id !== sel.id);
     rig.cables = rig.cables.filter(c => c.from !== sel.id && c.to !== sel.id);
   } else if (sel?.kind === 'cable') rig.cables.splice(sel.i, 1);
-  else if (sel?.kind === 'legend') rig.legend.show = false;
   else return;
   select(null); commit(); draw();
 }
@@ -202,7 +212,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'Escape') { select(null); draw(); }
   else if (e.key.startsWith('Arrow') && sel?.kind === 'item') {
     e.preventDefault();
-    const it = find(sel.id), d = e.shiftKey ? GRID : 1;
+    const it = find(sel.id), d = GRID * (e.shiftKey ? 5 : 1);
     it.x += e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
     it.y += e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
     commit(); draw();
@@ -247,7 +257,8 @@ const HELP = `<div class="help"><h3>How to</h3><ul>
 <li><b>Connect</b>: drag from an <i class="dot out"></i> output to an <i class="dot in"></i> input.</li>
 <li><b>Move the view</b>: drag the background or scroll. <b>Zoom</b>: pinch or ⌘/Ctrl + scroll.</li>
 <li><b>Delete</b>: select and press ⌫. <b>Undo</b>: ⌘/Ctrl + Z. <b>Duplicate</b>: ⌘/Ctrl + D.</li>
-<li>Pedals are numbered automatically in signal-chain order.</li>
+<li><b>Cables</b> route themselves around your gear. Drag a cable segment to move it; <b>Reset route</b> undoes that.</li>
+<li>Everything snaps to the grid. Arrow keys move the selection one step (⇧ for five).</li>
 <li>Your rig is saved in this browser. Use <b>Save</b> to keep a <code>.rig.json</code> file.</li></ul></div>`;
 
 function inspector() {
@@ -264,33 +275,25 @@ function inspector() {
         + field('Note', `<input data-k="note" value="${esc(o.note)}" placeholder="e.g. 1974, Vintage, Sunburst">`);
     }
     if (a.custom) {
-      h += field('Printed name', `<input data-k="params.text" maxlength="40" value="${esc(o.params?.text)}" placeholder="${esc(a.model)}">`)
-        + field('Knobs (comma separated)', `<input data-k="params.knobs" value="${esc((o.params?.knobs ?? a.params.knobs ?? []).join(', '))}">`);
+      h += field('Knobs (comma separated)', `<input data-k="params.knobs" value="${esc((o.params?.knobs ?? a.params.knobs ?? []).join(', '))}">`);
     }
     const finishes = a.category === 'guitar'
       ? `<select data-k="color"><option value="">Finish…</option>${Object.entries(FINISHES).map(([n, v]) => `<option value="${v}"${v === o.color ? ' selected' : ''}>${n}</option>`).join('')}</select>` : '';
     h += `<div class="f"><span>Colour</span><div class="row">${finishes}<input type="color" data-k="color" value="${hex6(o.color || a.params?.color)}"><button type="button" data-act="resetColor">Reset</button></div></div>`;
     if (a.category === 'guitar') h += check('Left-handed', 'flip', o.flip);
-    if (a.template !== 'text') h += check('Show caption', 'caption', o.caption ?? ['guitar', 'amp'].includes(a.category));
-    if (['pedal', 'fx'].includes(a.category)) h += check('Numbered in legend', 'number', o.number !== false);
+    if (a.template !== 'text') h += check('Show caption', 'caption', o.caption ?? true);
     h += `<div class="actions"><button data-act="front">Bring to front</button><button data-act="back">Send to back</button><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete</button></div>`;
   } else if (sel?.kind === 'cable') {
     const A = find(o.from), B = find(o.to), nm = it => esc(byId[it?.asset]?.model || it?.asset);
     h = `<h2>Cable</h2><p class="muted">${nm(A)} → ${nm(B)}</p>`
       + field('Label', `<input data-k="label" value="${esc(o.label)}" placeholder="e.g. To JCM800 head">`)
       + `<div class="f"><span>Colour</span><div class="row"><input type="color" data-k="color" value="${hex6(o.color || '#1f1f1f')}"><button type="button" data-act="resetColor">Reset</button></div></div>`
-      + `<div class="actions"><button data-act="del" class="danger">Delete cable</button></div>`;
-  } else if (sel?.kind === 'legend') {
-    h = `<h2>Legend</h2><p class="muted">Lists numbered pedals in chain order.</p>`
-      + field('Columns', `<input type="number" min="1" max="6" data-k="cols" value="${o.cols}">`)
-      + `<div class="actions"><button data-act="del" class="danger">Hide legend</button></div>`;
+      + `<div class="actions">${o.points ? '<button data-act="reroute">Reset route</button>' : ''}<button data-act="del" class="danger">Delete cable</button></div>`;
   } else {
     h = `<h2>Rig</h2><p class="muted">Nothing selected</p>`
       + field('Title', `<input data-k="title" value="${esc(rig.title)}">`)
       + field('Subtitle', `<input data-k="subtitle" value="${esc(rig.subtitle)}">`)
-      + `<div class="row2">${field('Width', `<input type="number" min="200" max="8000" step="10" data-k="paper.w" value="${rig.paper.w}">`)}${field('Height', `<input type="number" min="200" max="8000" step="10" data-k="paper.h" value="${rig.paper.h}">`)}</div>`
-      + check('Show legend', 'legend.show', rig.legend.show)
-      + field('Legend columns', `<input type="number" min="1" max="6" data-k="legend.cols" value="${rig.legend.cols}">`)
+      + `<div class="row2">${field('Width', `<input type="number" min="200" max="8000" step="20" data-k="paper.w" value="${rig.paper.w}">`)}${field('Height', `<input type="number" min="200" max="8000" step="20" data-k="paper.h" value="${rig.paper.h}">`)}</div>`
       + HELP;
   }
   insp.innerHTML = h;
@@ -315,6 +318,7 @@ insp.addEventListener('click', e => {
   const acts = {
     del: remove, dup: duplicate, front: () => restack(true), back: () => restack(false),
     resetColor: () => { delete selected().color; commit(); draw(); inspector(); },
+    reroute: () => { delete selected().points; commit(); draw(); inspector(); },
   };
   acts[act]?.();
 });

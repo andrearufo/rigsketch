@@ -1,9 +1,10 @@
-// Rig document: the JSON file format, validation and signal-chain numbering.
+// Rig document: the JSON file format and its validation.
 
 export const FORMAT = 'rigsketch';
 export const VERSION = 1;
 export const CATEGORIES = ['guitar', 'pedal', 'amp', 'fx', 'misc'];
-const NUMBERED = new Set(['pedal', 'fx']);
+export const GRID = 20; // everything snaps to this grid, cables are routed on it
+const snap = v => Math.round(v / GRID) * GRID;
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const COLOR = /^(#[0-9a-fA-F]{3,8}|sunburst|cherryburst|tobacco)$/;
@@ -15,7 +16,6 @@ export function emptyRig() {
   return {
     format: FORMAT, version: VERSION, title: 'My rig', subtitle: '',
     paper: { w: 1200, h: 1500 },
-    legend: { show: true, x: 60, y: 1100, cols: 2 },
     items: [], cables: [],
   };
 }
@@ -47,10 +47,10 @@ export function parseRig(input) {
   for (const it of Array.isArray(d.items) ? d.items : []) {
     if (!it || !ID.test(it.id) || ids.has(it.id) || typeof it.asset !== 'string') continue;
     ids.add(it.id);
-    const o = { id: it.id, asset: it.asset.slice(0, 80), x: num(it.x, 0), y: num(it.y, 0) };
+    const o = { id: it.id, asset: it.asset.slice(0, 80), x: snap(num(it.x, 0)), y: snap(num(it.y, 0)) };
     for (const k of ['label', 'note', 'text']) if (typeof it[k] === 'string') o[k] = it[k].slice(0, 500);
     if (COLOR.test(it.color)) o.color = it.color;
-    for (const k of ['flip', 'caption', 'number']) if (typeof it[k] === 'boolean') o[k] = it[k];
+    for (const k of ['flip', 'caption']) if (typeof it[k] === 'boolean') o[k] = it[k];
     if (it.params && typeof it.params === 'object') {
       const p = cleanParams(it.params);
       if (Object.keys(p).length) o.params = p;
@@ -63,45 +63,16 @@ export function parseRig(input) {
     const o = { from: c.from, to: c.to };
     if (typeof c.label === 'string' && c.label) o.label = c.label.slice(0, 80);
     if (COLOR.test(c.color)) o.color = c.color;
+    if (Array.isArray(c.points)) {
+      const pts = c.points.filter(q => Array.isArray(q) && isNum(q[0]) && isNum(q[1])).slice(0, 100).map(([x, y]) => [snap(num(x, 0)), snap(num(y, 0))]);
+      if (pts.length) o.points = pts;
+    }
     cables.push(o);
   }
-  const L = d.legend || {};
   return {
     format: FORMAT, version: VERSION,
     title: str(d.title) ?? base.title, subtitle: str(d.subtitle) ?? '',
     paper: { w: num(d.paper?.w, base.paper.w, 200, 8000), h: num(d.paper?.h, base.paper.h, 200, 8000) },
-    legend: { show: typeof L.show === 'boolean' ? L.show : true, x: num(L.x, base.legend.x), y: num(L.y, base.legend.y), cols: Math.round(num(L.cols, 2, 1, 6)) },
     items, cables,
   };
-}
-
-// Number pedals and multi-FX in signal-chain order: depth-first along the cables,
-// starting from guitars, then any other item without an incoming cable.
-export function chainNumbers(rig, byId) {
-  const cat = it => byId[it.asset]?.category;
-  const next = new Map(), hasIn = new Set();
-  for (const c of rig.cables) {
-    if (!next.has(c.from)) next.set(c.from, []);
-    next.get(c.from).push(c.to);
-    hasIn.add(c.to);
-  }
-  const order = [], seen = new Set();
-  const visit = id => {
-    if (seen.has(id)) return;
-    seen.add(id);
-    order.push(id);
-    for (const n of next.get(id) || []) visit(n);
-  };
-  rig.items.filter(it => !hasIn.has(it.id))
-    .sort((a, b) => (cat(b) === 'guitar') - (cat(a) === 'guitar'))
-    .forEach(it => visit(it.id));
-  rig.items.forEach(it => visit(it.id));
-  const byItem = new Map(rig.items.map(it => [it.id, it]));
-  const nums = new Map();
-  let n = 0;
-  for (const id of order) {
-    const it = byItem.get(id);
-    if (NUMBERED.has(cat(it)) && it.number !== false) nums.set(id, ++n);
-  }
-  return nums;
 }

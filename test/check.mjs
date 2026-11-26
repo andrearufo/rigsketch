@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { renderAsset, renderRig, exportSVG, TEMPLATES } from '../js/draw.js';
-import { parseRig, chainNumbers, CATEGORIES } from '../js/rig.js';
+import { parseRig, CATEGORIES, GRID } from '../js/rig.js';
+import { routeCables, moveSegment } from '../js/route.js';
 
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const catalog = JSON.parse(read('../assets/catalog.json'));
@@ -21,15 +22,38 @@ for (const a of catalog) {
   clean(g.svg, a.id);
   if (a.category === 'pedal' || a.category === 'fx') assert.ok(g.jacks.in && g.jacks.out, `${a.id}: needs in/out jacks`);
   if (a.category === 'guitar') assert.ok(g.jacks.out, `${a.id}: guitar needs an output`);
+  // grid alignment: size in grid steps, jacks on a grid line across their direction
+  if (a.template !== 'text') assert.ok(g.w % GRID === 0 && g.h % GRID === 0, `${a.id}: size ${g.w}x${g.h} not on the ${GRID}px grid`);
+  for (const j of Object.values(g.jacks)) assert.ok((j.dx ? j.y : j.x) % GRID === 0, `${a.id}: jack off grid`);
 }
 
-// Example rig: loads, every asset exists, numbering follows the cables.
+// Example rig: loads, every asset exists, every cable gets an orthogonal route.
 const ex = parseRig(read('../examples/classic-rock.rig.json'));
 for (const it of ex.items) assert.ok(byId[it.asset], `example uses unknown asset ${it.asset}`);
-const nums = chainNumbers(ex, byId);
-assert.deepEqual([...nums.entries()], [['i3', 1], ['i4', 2], ['i5', 3], ['i6', 4], ['i7', 5], ['i8', 6], ['i9', 7]]);
+const out = {};
+const t0 = performance.now();
 clean(exportSVG(ex, byId), 'example rig');
-clean(renderRig(ex, byId, { ui: true, sel: { kind: 'item', id: 'i1' } }), 'example rig (ui)');
+const ms = performance.now() - t0;
+clean(renderRig(ex, byId, { ui: true, sel: { kind: 'item', id: 'i1' }, out }), 'example rig (ui)');
+assert.equal(out.routes.length, ex.cables.length);
+for (const r of out.routes) {
+  assert.ok(r && r.length >= 2, 'cable without route');
+  for (let i = 1; i < r.length; i++) assert.ok(r[i].x === r[i - 1].x || r[i].y === r[i - 1].y, 'diagonal cable segment');
+}
+
+// Router: a cable must go around an item standing between its ends.
+const rect = (x, y, w, h) => ({ x, y, w, h });
+const box = rig => routeCables(rig, new Map([['a', [rect(400, 100, 60, 100)]], ['b', [rect(100, 100, 60, 100)]], ['wall', [rect(240, 40, 60, 220)]]]),
+  () => ({ a: { x: 400, y: 120, dx: -1, dy: 0 }, b: { x: 160, y: 120, dx: 1, dy: 0 } }));
+const plain = { paper: { w: 600, h: 400 }, cables: [{ from: 'a', to: 'b' }] };
+const [route] = box(plain);
+const hits = (p, q) => Math.max(p.x, q.x) > 230 && Math.min(p.x, q.x) < 310 && Math.max(p.y, q.y) > 30 && Math.min(p.y, q.y) < 270;
+for (let i = 1; i < route.length; i++) assert.ok(!hits(route[i - 1], route[i]), 'cable crosses an item');
+// Dragging a middle segment keeps the cable orthogonal and attached.
+const mid = route.findIndex((p, i) => i > 0 && i < route.length - 2 && p.y === route[i + 1].y);
+const moved = box({ ...plain, cables: [{ from: 'a', to: 'b', points: moveSegment(route, mid, 40) }] })[0];
+assert.deepEqual([moved[0], moved[moved.length - 1]], [route[0], route[route.length - 1]]);
+for (let i = 1; i < moved.length; i++) assert.ok(moved[i].x === moved[i - 1].x || moved[i].y === moved[i - 1].y, 'diagonal after drag');
 
 // Round trip and hostile input.
 assert.deepEqual(parseRig(JSON.stringify(ex)), ex);
@@ -47,4 +71,4 @@ assert.ok(!/<script|<img|<b>/.test(evilSvg), 'unescaped markup in output');
 assert.throws(() => parseRig('{"format":"other"}'));
 assert.throws(() => parseRig({ format: 'rigsketch', version: 99 }));
 
-console.log(`ok: ${catalog.length} assets, example rig, format checks`);
+console.log(`ok: ${catalog.length} assets, example rig (${ms.toFixed(0)} ms), router, format checks`);
