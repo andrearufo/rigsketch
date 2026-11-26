@@ -81,12 +81,15 @@ export function parseRig(input) {
 
 // Share links: the rig, deflated and base64url-encoded, travels in the URL hash.
 const MAX_SHARED = 2e6; // decompressed bytes: a hostile link must not hang the page
+// btoa/atob rather than Uint8Array.toBase64: that one is missing in Node 22 and older Safari/Chrome.
+const toB64url = bytes => btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64url = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 export async function encodeRig(rig) {
   const z = new Blob([JSON.stringify(rig)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  return new Uint8Array(await new Response(z).arrayBuffer()).toBase64({ alphabet: 'base64url', omitPadding: true });
+  return toB64url(new Uint8Array(await new Response(z).arrayBuffer()));
 }
 export async function decodeRig(code) {
-  const bytes = Uint8Array.fromBase64(code, { alphabet: 'base64url' });
+  const bytes = fromB64url(code);
   const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
   const parts = [];
   let size = 0;

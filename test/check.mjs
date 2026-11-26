@@ -96,6 +96,6 @@ assert.equal(so.routes[1].at(-1).x, 500, 'cable should end at the head FX return
 assert.deepEqual(await decodeRig(await encodeRig(ex)), ex);
 await assert.rejects(decodeRig('not base64 !'));
 const bomb = new Blob(['{"format":"rigsketch","version":1,"title":"' + 'a'.repeat(3e6) + '"}']).stream().pipeThrough(new CompressionStream('deflate-raw'));
-await assert.rejects(decodeRig(new Uint8Array(await new Response(bomb).arrayBuffer()).toBase64({ alphabet: 'base64url', omitPadding: true })), /too large/);
+await assert.rejects(decodeRig(Buffer.from(await new Response(bomb).arrayBuffer()).toString('base64url')), /too large/);
 
 console.log(`ok: ${catalog.length} assets, example rig (${ms.toFixed(0)} ms), router, jacks, share links, format checks`);
