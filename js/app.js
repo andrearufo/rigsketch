@@ -65,6 +65,7 @@ function applyView() {
   $('#zoomval').textContent = Math.round(view.s * 100) + '%';
 }
 function fit() {
+  if (!rig) return; // resize fired before the rig loaded
   const W = svg.clientWidth, H = svg.clientHeight;
   if (!W || !H) return requestAnimationFrame(fit); // not laid out yet
   userView = false;
