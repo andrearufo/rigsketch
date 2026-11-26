@@ -7,6 +7,7 @@ export const GRID = 20; // everything snaps to this grid, cables are routed on i
 const snap = v => Math.round(v / GRID) * GRID;
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
+const JACK = /^[a-z0-9]{1,12}$/;
 const COLOR = /^(#[0-9a-fA-F]{3,8}|sunburst|cherryburst|tobacco)$/;
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num = (v, def, min = -1e5, max = 1e5) => (isNum(v) ? Math.min(max, Math.max(min, v)) : def);
@@ -60,6 +61,8 @@ export function parseRig(input) {
   for (const c of Array.isArray(d.cables) ? d.cables : []) {
     if (!c || !ids.has(c.from) || !ids.has(c.to) || c.from === c.to) continue;
     const o = { from: c.from, to: c.to };
+    if (JACK.test(c.fromJack) && c.fromJack !== 'out') o.fromJack = c.fromJack;
+    if (JACK.test(c.toJack) && c.toJack !== 'in') o.toJack = c.toJack;
     if (typeof c.label === 'string' && c.label) o.label = c.label.slice(0, 80);
     if (COLOR.test(c.color)) o.color = c.color;
     if (Array.isArray(c.points)) {
@@ -74,4 +77,22 @@ export function parseRig(input) {
     paper: { w: num(d.paper?.w, base.paper.w, 200, 8000), h: num(d.paper?.h, base.paper.h, 200, 8000) },
     items, cables,
   };
+}
+
+// Share links: the rig, deflated and base64url-encoded, travels in the URL hash.
+const MAX_SHARED = 2e6; // decompressed bytes: a hostile link must not hang the page
+export async function encodeRig(rig) {
+  const z = new Blob([JSON.stringify(rig)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(z).arrayBuffer()).toBase64({ alphabet: 'base64url', omitPadding: true });
+}
+export async function decodeRig(code) {
+  const bytes = Uint8Array.fromBase64(code, { alphabet: 'base64url' });
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const parts = [];
+  let size = 0;
+  for (let r; !(r = await reader.read()).done;) {
+    if ((size += r.value.length) > MAX_SHARED) { reader.cancel(); throw new Error('This shared rig is too large.'); }
+    parts.push(r.value);
+  }
+  return parseRig(await new Blob(parts).text());
 }

@@ -75,7 +75,17 @@ const knob = (x, y, r, fill = '#151515', mark = '#fff') =>
 const foot = (x, y, r = 8) =>
   C(x, y, r, 'url(#rs-chrome)', line('#111', 1.2)) + C(x, y, r * .55, '#e7eaee', line('#7c838b', .8));
 const led = (x, y, c = '#e53935') => C(x, y, 2.6, c, line('#000', .8));
-const sideJacks = (w, y) => ({ in: { x: w, y, dx: 1, dy: 0 }, out: { x: 0, y, dx: -1, dy: 0 } });
+// Jacks are named; the name says the direction: in, in2 and return take signal, the rest give it.
+// Inputs sit on the right edge and outputs on the left, like on a real pedal; the second
+// (stereo / B) pair and the FX loop go one and two grid steps lower.
+export const ioOf = name => (/^(in|return)/.test(name) ? 'in' : 'out');
+export const JACK_LABEL = { in: 'Input', out: 'Output', in2: 'Input R', out2: 'Output R / B', send: 'FX send', return: 'FX return', spk: 'Speaker out' };
+const J = (x, y, dx, dy = 0, face) => ({ x, y, dx, dy, ...(face && { face }) });
+const sideJacks = (w, y, p = {}) => ({
+  in: J(w, y, 1), out: J(0, y, -1),
+  ...(p.stereo && { out2: J(0, y + 20, -1) }), ...(p.stereoIn && { in2: J(w, y + 20, 1) }),
+  ...(p.loop && { send: J(0, y + 40, -1), return: J(w, y + 40, 1) }),
+});
 const shell = (w, h, c, rx = 6) => R(0, 0, w, h, c, rx, line('#111', 2)) + R(0, 0, w, h, 'url(#rs-sheen)', rx);
 
 // ---------- guitars ----------
@@ -253,14 +263,14 @@ function boss(p) {
   s += R(3, 44, w - 6, h - 47, shade(c, -.12), 4, line('#111', 1.2));
   s += R(10, 64, w - 20, 28, '#1c1c1c', 3);
   for (let y = 68; y < 90; y += 4) s += L(13, y, w - 13, y, '#3a3a3a', 1.4);
-  return { w, h, svg: s, jacks: sideJacks(w, 20) };
+  return { w, h, svg: s, jacks: sideJacks(w, 20, p) };
 }
 
 function ts(p) {
   const w = 60, h = 100, c = p.color || '#2e8b57';
   let s = shell(w, h, c, 8) + knob(15, 16, 7.5) + knob(45, 16, 7.5) + knob(30, 32, 6.5) + led(30, 8);
   s += R(6, 46, w - 12, h - 52, shade(c, -.3), 5, line('#111', 1.2)) + R(11, 52, w - 22, h - 64, shade(c, -.55), 3);
-  return { w, h, svg: s, jacks: sideJacks(w, 20) };
+  return { w, h, svg: s, jacks: sideJacks(w, 20, p) };
 }
 
 // Generic stompbox: knobs in rows, optional screen and coloured stripe, LED, footswitches.
@@ -281,13 +291,13 @@ function box(p) {
   const h = Math.max(p.h || 0, Math.ceil((y + (sw ? fr * 2 + 22 : 6)) / 20) * 20);
   if (sw) body += led(w / 2, h - fr * 2 - 14);
   for (let i = 0; i < sw; i++) body += foot(w * (i + .5) / sw, h - fr - 7, fr);
-  return { w, h, svg: shell(w, h, c, 5) + body, jacks: sideJacks(w, 20) };
+  return { w, h, svg: shell(w, h, c, 5) + body, jacks: sideJacks(w, 20, p) };
 }
 
 function round(p) {
   const d = 100, c = p.color || '#c81e1e';
   const s = C(50, 50, 50, c, line('#111', 2)) + C(50, 50, 50, 'url(#rs-sheen)') + knob(31, 30, 8.5) + knob(69, 30, 8.5) + foot(50, 72, 9);
-  return { w: d, h: d, svg: s, jacks: sideJacks(d, 40) };
+  return { w: d, h: d, svg: s, jacks: sideJacks(d, 40, p) };
 }
 
 // Treadle pedals (wah, volume, Whammy). panelW adds a control panel on the right.
@@ -298,7 +308,7 @@ function wah(p) {
   s += R(12, h * .36, tw - 24, h * .54, '#161616', 5);
   for (let y = h * .36 + 6; y < h * .9 - 3; y += 6) s += L(17, y, tw - 17, y, '#333', 2);
   if (pw) s += R(tw - 1, 6, pw - 5, h - 12, shade(c, .1), 5, line('#111', 1.4)) + knob(tw + pw / 2 - 3, 30, 9) + R(tw + 5, 52, pw - 16, 16, '#1a0d0d', 2) + led(tw + pw / 2 - 3, 84);
-  return { w, h, svg: s, jacks: sideJacks(w, 40) };
+  return { w, h, svg: s, jacks: sideJacks(w, 40, p) };
 }
 
 // ---------- multi-FX, rack ----------
@@ -316,7 +326,7 @@ function multifx(p) {
     const x = w * ((i % per) + .5) / per, y = top + rowH * (Math.floor(i / per) + .5);
     s += C(x, y, fr + 3, 'none', ` stroke="${RING[i % 6]}" stroke-width="2"`) + foot(x, y, fr);
   }
-  return { w, h, svg: s, jacks: sideJacks(w, 20) };
+  return { w, h, svg: s, jacks: sideJacks(w, 20, p) };
 }
 
 function rack(p) {
@@ -326,7 +336,7 @@ function rack(p) {
   s += R(40, h / 2 - 10, 100, 20, '#140808', 2, line('#000', 1)) + (p.screen ? T(90, h / 2 + 4.5, p.screen, 12, '#ff4d3a', { extra: ' font-family="monospace"' }) : '');
   const nk = Array.isArray(p.knobs) ? p.knobs.length : p.knobs ?? 4;
   for (let i = 0; i < nk; i++) s += knob(nk > 1 ? 180 + i * 110 / (nk - 1) : 235, h / 2, 7, knobFor(c));
-  return { w, h, svg: s, jacks: sideJacks(w, h / 2) };
+  return { w, h, svg: s, jacks: sideJacks(w, h / 2, p) };
 }
 
 // ---------- amps (big brand logo kept: it is what makes an amp recognisable) ----------
@@ -340,7 +350,7 @@ function head(p, a) {
   s += R(12, 84, w - 24, 28, panel, 3, line('#000', 1));
   const nk = p.knobs ?? 6, x0 = 40, x1 = w - 70, step = nk > 1 ? (x1 - x0) / (nk - 1) : 0, r = Math.min(7, (step || 20) / 2.4);
   for (let i = 0; i < nk; i++) s += knob(x0 + i * step, 98, r, p.knob || knobFor(panel), p.knobMark || '#e8d9a8');
-  return { w, h, svg: s, jacks: { in: { x: w - 40, y: 100, dx: 0, dy: -1, face: true } } };
+  return { w, h, svg: s, jacks: { in: J(w - 40, 100, 0, -1, true), spk: J(w, 100, 1), ...(p.loop && { send: J(0, 60, -1), return: J(0, 100, -1) }) } };
 }
 
 function speakers(n, cols, x, y, w, h) {
@@ -361,7 +371,7 @@ function cab(p, a) {
       ? T(gx + 14, gy + 28, logo, 20, p.logoColor || '#f4f1e8', { anchor: 'start', weight: 800, italic: p.italic })
       : T(w / 2, gy + Math.min(50, gh * .24), logo, fitText(logo, gw - 40, 30), p.logoColor || '#f4f1e8', { weight: 800, italic: p.italic, ls: 1 });
   }
-  return { w, h, svg: s, jacks: {} };
+  return { w, h, svg: s, jacks: { in: J(w, 40, 1) } };
 }
 
 function combo(p, a) {
@@ -379,7 +389,7 @@ function combo(p, a) {
       ? T(w / 2, gy + 32, logo, fitText(logo, gw - 40, 24), lc, { weight: 800, italic: p.italic, ls: 1 })
       : T(gx + 14, gy + 28, logo, fitText(logo, gw * .5, 22), lc, { anchor: 'start', weight: 800, italic: p.italic ?? true });
   }
-  return { w, h, svg: s, jacks: { in: { x: 40, y: 40, dx: 0, dy: -1, face: true } } };
+  return { w, h, svg: s, jacks: { in: J(40, 40, 0, -1, true), ...(p.loop && { send: J(0, 100, -1), return: J(0, 140, -1) }) } };
 }
 
 // ---------- misc ----------
@@ -514,7 +524,7 @@ export function renderRig(rig, byId, { ui = false, sel = null, temp = null, out 
   const byItem = new Map(rig.items.map(it => [it.id, it]));
   const routes = routeCables(rig, rects, c => {
     const A = byItem.get(c.from), B = byItem.get(c.to);
-    const a = A && jackWorld(A, G.get(A.id), 'out'), b = B && jackWorld(B, G.get(B.id), 'in');
+    const a = A && jackWorld(A, G.get(A.id), c.fromJack || 'out'), b = B && jackWorld(B, G.get(B.id), c.toJack || 'in');
     return a && b ? { a, b } : null;
   });
   if (out) out.routes = routes;
@@ -534,7 +544,7 @@ export function renderRig(rig, byId, { ui = false, sel = null, temp = null, out 
   if (ui) {
     for (const it of rig.items) {
       for (const [type, j] of Object.entries(G.get(it.id).jacks)) {
-        s += C(it.x + j.x, it.y + j.y, 6.5, type === 'in' ? '#2e7d32' : '#1565c0', ` stroke="#fff" stroke-width="2" class="jack" data-jack="${type}" data-id="${esc(it.id)}"`);
+        s += `<circle cx="${f(it.x + j.x)}" cy="${f(it.y + j.y)}" r="6.5" fill="${ioOf(type) === 'in' ? '#2e7d32' : '#1565c0'}" stroke="#fff" stroke-width="2" class="jack" data-jack="${type}" data-id="${esc(it.id)}"><title>${JACK_LABEL[type] || type}</title></circle>`;
       }
     }
     if (temp) s += L(temp.from.x, temp.from.y, temp.x, temp.y, '#1e88e5', 4, ' stroke-dasharray="8 6" stroke-linecap="round" pointer-events="none"');

@@ -14,7 +14,8 @@ Draw your guitar rig in the browser: guitars, pedalboard, amps and the cables be
 - Drag from an output jack to an input jack: the cable **routes itself** with horizontal and vertical runs around your gear. Drag any segment to adjust it.
 - Notes, custom colours and finishes (sunburst, cherry burst…), left-handed guitars, cable labels, free text.
 - **Custom pedal** and **custom rack unit** assets: set the name, knobs and colour for anything not in the library yet.
-- Export to **PNG** (2×) or **SVG**. Save and open rigs as **`.rig.json`** files.
+- **Stereo outputs, FX loops and speaker outs** on the gear that has them, plus an A/B/Y box for two-amp rigs. Hover a jack to see its name.
+- Export to **PNG** (2×) or **SVG**. Save and open rigs as **`.rig.json`** files, or **Share link**: the whole rig, compressed, travels in the link itself (nothing is uploaded anywhere).
 - Undo/redo, autosave in the browser. No account, no server, no build step.
 
 ## Request a new asset
@@ -39,7 +40,7 @@ A rig is a plain JSON file (`.rig.json`), easy to read, diff and generate:
   ],
   "cables": [
     { "from": "i1", "to": "i2" },
-    { "from": "i2", "to": "i3", "label": "to amp", "color": "#1f1f1f", "points": [[480, 600], [440, 600]] }
+    { "from": "i2", "to": "i3", "fromJack": "out2", "label": "to amp", "color": "#1f1f1f", "points": [[480, 600], [440, 600]] }
   ]
 }
 ```
@@ -54,6 +55,7 @@ A rig is a plain JSON file (`.rig.json`), easy to read, diff and generate:
 | `caption` | Show the caption under the item (default on). |
 | `params` | Only for custom assets and text: `knobs`, `size`. |
 | `cables[]` | From an item’s output to another item’s input. `points` is only present when a route was adjusted by hand; without it the route is computed. |
+| `fromJack`, `toJack` | Which jack, when it is not the main `out` / `in`: `out2`, `in2` (stereo or A/B), `send`, `return` (FX loop), `spk` (speaker out). |
 
 ## Add an asset yourself
 
@@ -69,7 +71,7 @@ Assets are data, not drawings: each entry in [`assets/catalog.json`](assets/cata
 | `guitar` | guitars & basses | `shape` (strat, tele, lespaul, sg, semihollow, prs, offset, explorer, flyingv, dread, pbass, jbass), `head` (fender, gibson, bass, pointy, acoustic), `color`, `guard`, `board`, `pickups`, `pickupColor`, `ring`, `binding`, `hardware`, `knob` |
 | `boss` | Boss compact pedals | `color`, `knobs` (count), `display`, `sliders` |
 | `ts` | Tube Screamer-style | `color`, `knobs` |
-| `box` | any stompbox | `w`, `h` (multiples of 20), `color`, `knobs`, `switches`, `display`, `accent`, `panel` |
+| `box` | any stompbox | `w`, `h` (multiples of 20), `color`, `knobs`, `switches`, `display`, `accent` |
 | `round` | Fuzz Face-style | `color`, `knobs` |
 | `wah` | wah, volume, Whammy | `w`, `h`, `color`, `text`, `panelW` |
 | `multifx` | floor modelers | `w`, `h`, `switches`, `knobs` |
@@ -87,7 +89,7 @@ Then run the checks and open a pull request:
 node test/check.mjs
 ```
 
-Sizes are multiples of the 20 px grid and jacks sit on grid lines (the check enforces it). Brand and model names appear as plain text only, to identify the gear. No logos or trademarks are reproduced, and all drawings are generic and stylised. Rigsketch is not affiliated with any of the brands listed.
+Extra jacks: `stereo` (second output), `stereoIn` (second input), `loop` (FX send/return) on pedals, multi-FX and amps; amp heads always have a speaker out and cabinets a speaker input. Sizes are multiples of the 20 px grid and jacks sit on grid lines (the check enforces it). Brand and model names appear as plain text only, to identify the gear. No logos or trademarks are reproduced, and all drawings are generic and stylised. Rigsketch is not affiliated with any of the brands listed.
 
 ## Credits
 

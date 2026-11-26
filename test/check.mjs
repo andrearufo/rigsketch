@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { renderAsset, renderRig, exportSVG, TEMPLATES } from '../js/draw.js';
-import { parseRig, CATEGORIES, GRID } from '../js/rig.js';
+import { parseRig, CATEGORIES, GRID, encodeRig, decodeRig } from '../js/rig.js';
 import { routeCables, moveSegment } from '../js/route.js';
 
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -78,4 +78,24 @@ assert.ok(!/<script|<img|<b>/.test(evilSvg), 'unescaped markup in output');
 assert.throws(() => parseRig('{"format":"other"}'));
 assert.throws(() => parseRig({ format: 'rigsketch', version: 99 }));
 
-console.log(`ok: ${catalog.length} assets, example rig (${ms.toFixed(0)} ms), router, format checks`);
+// Named jacks: a stereo cable lands on the right jacks; the file keeps only non-default names.
+const stereo = parseRig({ format: 'rigsketch', version: 1, items: [
+  { id: 'd', asset: 'boss-dd-8', x: 400, y: 200 }, { id: 'b', asset: 'generic-aby-box', x: 200, y: 200 },
+  { id: 'x', asset: 'marshall-jcm900-4100', x: 500, y: 600 },
+], cables: [
+  { from: 'd', to: 'b', fromJack: 'out2', toJack: 'in' }, { from: 'd', to: 'x', fromJack: 'bad jack!', toJack: 'return' },
+] });
+assert.deepEqual(stereo.cables[0], { from: 'd', to: 'b', fromJack: 'out2' });
+assert.deepEqual(stereo.cables[1], { from: 'd', to: 'x', toJack: 'return' });
+const so = {};
+renderRig(stereo, byId, { ui: true, out: so });
+assert.deepEqual(so.routes[0][0], { x: 400, y: 240, dx: -1, dy: 0 }, 'cable should start at the DD-8 second output');
+assert.equal(so.routes[1].at(-1).x, 500, 'cable should end at the head FX return (left edge)');
+
+// Share links: round trip, and hostile links are refused.
+assert.deepEqual(await decodeRig(await encodeRig(ex)), ex);
+await assert.rejects(decodeRig('not base64 !'));
+const bomb = new Blob(['{"format":"rigsketch","version":1,"title":"' + 'a'.repeat(3e6) + '"}']).stream().pipeThrough(new CompressionStream('deflate-raw'));
+await assert.rejects(decodeRig(new Uint8Array(await new Response(bomb).arrayBuffer()).toBase64({ alphabet: 'base64url', omitPadding: true })), /too large/);
+
+console.log(`ok: ${catalog.length} assets, example rig (${ms.toFixed(0)} ms), router, jacks, share links, format checks`);

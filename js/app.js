@@ -1,6 +1,6 @@
 // Rigsketch editor: library, canvas interactions, inspector, undo, import/export.
-import { renderRig, renderAsset, exportSVG, jackWorld, FINISHES, DEFS, esc } from './draw.js';
-import { emptyRig, parseRig, newId, GRID } from './rig.js';
+import { renderRig, renderAsset, exportSVG, jackWorld, ioOf, JACK_LABEL, FINISHES, DEFS, esc } from './draw.js';
+import { emptyRig, parseRig, newId, GRID, encodeRig, decodeRig } from './rig.js';
 import { moveSegment } from './route.js';
 
 const REPO = 'https://github.com/andrearufo/rigsketch';
@@ -93,7 +93,7 @@ svg.addEventListener('pointerdown', e => {
   const jack = t.closest('[data-jack]'), item = t.closest('[data-id]'), cable = t.closest('[data-cable]'), seg = t.closest('[data-seg]');
   if (jack) {
     const it = find(jack.dataset.id);
-    drag = { kind: 'wire', id: it.id, type: jack.dataset.jack };
+    drag = { kind: 'wire', id: it.id, jack: jack.dataset.jack };
     temp = { from: jackWorld(it, renderAsset(byId[it.asset], it), jack.dataset.jack), x: p.x, y: p.y };
   } else if (item) {
     const it = find(item.dataset.id);
@@ -134,10 +134,11 @@ svg.addEventListener('pointermove', e => {
 svg.addEventListener('pointerup', e => {
   if (drag?.kind === 'wire') {
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-jack]');
-    if (el && el.dataset.jack !== drag.type && el.dataset.id !== drag.id) {
-      const [from, to] = drag.type === 'out' ? [drag.id, el.dataset.id] : [el.dataset.id, drag.id];
-      if (!rig.cables.some(c => c.from === from && c.to === to)) {
-        rig.cables.push({ from, to });
+    if (el && ioOf(el.dataset.jack) !== ioOf(drag.jack) && el.dataset.id !== drag.id) {
+      const a = { id: drag.id, j: drag.jack }, b = { id: el.dataset.id, j: el.dataset.jack };
+      const [o, i] = ioOf(a.j) === 'out' ? [a, b] : [b, a];
+      if (!rig.cables.some(c => c.from === o.id && c.to === i.id && (c.fromJack || 'out') === o.j && (c.toJack || 'in') === i.j)) {
+        rig.cables.push({ from: o.id, to: i.id, ...(o.j !== 'out' && { fromJack: o.j }), ...(i.j !== 'in' && { toJack: i.j }) });
         select({ kind: 'cable', i: rig.cables.length - 1 });
       }
     }
@@ -245,7 +246,8 @@ const HELP = `<div class="help"><h3>How to</h3><ul>
 <li><b>Delete</b>: select and press ⌫. <b>Undo</b>: ⌘/Ctrl + Z. <b>Duplicate</b>: ⌘/Ctrl + D.</li>
 <li><b>Cables</b> route themselves around your gear. Drag a cable segment to move it; <b>Reset route</b> undoes that.</li>
 <li>Everything snaps to the grid. Arrow keys move the selection one step (⇧ for five).</li>
-<li>Your rig is saved in this browser. Use <b>Save</b> to keep a <code>.rig.json</code> file.</li></ul></div>`;
+<li>Some gear has more jacks: stereo outputs, FX loop, speaker out. Hover a jack to see its name.</li>
+<li>Your rig is saved in this browser. <b>Save</b> downloads a <code>.rig.json</code> file, <b>Share link</b> copies a link that opens it.</li></ul></div>`;
 
 function inspector() {
   const o = selected();
@@ -270,8 +272,8 @@ function inspector() {
     if (a.template !== 'text') h += check('Show caption', 'caption', o.caption ?? true);
     h += `<div class="actions"><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete</button></div>`;
   } else if (sel?.kind === 'cable') {
-    const A = find(o.from), B = find(o.to), nm = it => esc(byId[it?.asset]?.model || it?.asset);
-    h = `<h2>Cable</h2><p class="muted">${nm(A)} → ${nm(B)}</p>`
+    const nm = (id, j) => esc(byId[find(id)?.asset]?.model || id) + (j ? ` (${JACK_LABEL[j] || j})` : '');
+    h = `<h2>Cable</h2><p class="muted">${nm(o.from, o.fromJack)} → ${nm(o.to, o.toJack)}</p>`
       + field('Label', `<input data-k="label" value="${esc(o.label)}" placeholder="e.g. To JCM800 head">`)
       + `<div class="f"><span>Colour</span><div class="row"><input type="color" data-k="color" value="${hex6(o.color || '#1f1f1f')}"><button type="button" data-act="resetColor">Reset</button></div></div>`
       + `<div class="actions">${o.points ? '<button data-act="reroute">Reset route</button>' : ''}<button data-act="del" class="danger">Delete cable</button></div>`;
@@ -333,14 +335,32 @@ async function png() {
   URL.revokeObjectURL(url);
   c.toBlob(b => download(b, baseName() + '.png'));
 }
+async function share(btn) {
+  const url = `${location.origin}${location.pathname}#r=${await encodeRig(rig)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    const old = btn.textContent;
+    btn.textContent = 'Link copied ✓';
+    setTimeout(() => { btn.textContent = old; }, 2000);
+  } catch { prompt('Copy this link:', url); }
+}
+// Open a rig shared as #r=…, then drop the hash so a reload keeps the user's edits.
+async function openShared() {
+  const code = location.hash.match(/^#r=([\w-]+)$/)?.[1];
+  if (!code) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try { replace(await decodeRig(code)); }
+  catch (err) { alert(`Could not open the shared rig: ${err.message}`); }
+}
+addEventListener('hashchange', openShared);
 const actions = {
   new: () => replace(emptyRig()),
   example: async () => replace(parseRig(await (await fetch(EXAMPLE)).text())),
   save: () => download(new Blob([JSON.stringify(rig, null, 2)], { type: 'application/json' }), baseName() + '.rig.json'),
   svg: () => download(new Blob([exportSVG(rig, byId)], { type: 'image/svg+xml' }), baseName() + '.svg'),
-  png, undo, redo,
+  png, undo, redo, share,
 };
-$('header').addEventListener('click', e => { const a = e.target.closest('[data-action]')?.dataset.action; actions[a]?.(); });
+$('header').addEventListener('click', e => { const b = e.target.closest('[data-action]'); actions[b?.dataset.action]?.(b); });
 $('#open').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
 $('#request').href = `${REPO}/issues/new?template=asset-request.yml`;
 
@@ -349,3 +369,4 @@ try { rig = parseRig(localStorage.getItem(KEY)); }
 catch { rig = parseRig(await (await fetch(EXAMPLE)).text()); }
 saved = JSON.stringify(rig);
 library(); inspector(); draw(); fit();
+openShared();
