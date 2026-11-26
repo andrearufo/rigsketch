@@ -31,7 +31,6 @@ export function newId(rig) {
 // from the trusted catalog, so nothing in a file can reach SVG attributes unchecked.
 function cleanParams(p) {
   const o = {};
-  if (typeof p.text === 'string') o.text = p.text.slice(0, 40);
   if (Array.isArray(p.knobs)) o.knobs = p.knobs.filter(k => typeof k === 'string').slice(0, 8).map(k => k.slice(0, 16));
   if (isNum(p.size)) o.size = num(p.size, 16, 6, 160);
   return o;

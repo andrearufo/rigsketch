@@ -170,7 +170,7 @@ const GSHAPES = {
   },
 };
 
-const HW = { chrome: 'url(#rs-chrome)', gold: '#d4b35a', black: '#1d1d1d' };
+const HW = { chrome: 'url(#rs-chrome)', gold: '#d4b35a' };
 const HEAD_COLOR = { fender: '#e3c48d', bass: '#e3c48d', gibson: '#141414', acoustic: '#1e130c' };
 const key = (x, y, hw, r = 0) => (r ? C(x, y, r, hw, line('#111', 1)) : R(x - 9, y - 5.5, 18, 11, hw, 5, line('#111', 1)));
 const post = (x, y) => C(x, y, 4.5, '#dfe3e8', line('#111', .8));
@@ -193,8 +193,8 @@ function headstock(type, c, hw) {
   return s;
 }
 
-function prim(list, ctx) {
-  const col = v => (v === 'hw' ? ctx.hw : v === 'guard' ? ctx.guard : v);
+function prim(list, hw) {
+  const col = v => (v === 'hw' ? hw : v);
   return (list || []).map(([t, ...a]) => {
     if (t === 'r') {
       const [x, y, w, h, rx, fill, rot] = a;
@@ -222,14 +222,13 @@ function pickup([t, y, a = 0, col], p) {
 function guitar(p) {
   const S = GSHAPES[p.shape] || GSHAPES.strat, { w, h } = S;
   const color = p.color || '#1a1a1a', hw = HW[p.hardware] || HW.chrome;
-  const ctx = { hw, guard: p.guard || S.guardColor || '#f1efe8' };
   const nut = S.bridge + S.scale, n = S.strings || 6, head = HEADS[p.head] ? p.head : (S.head || 'fender');
   let s = `<g transform="translate(${w / 2} ${h - 10}) scale(${K} ${-K})">`;
   s += P(S.body, paint(color), line('#111', p.binding ? 4 : 2.2));
   if (p.binding) s += P(S.body, 'none', line(p.binding, 1.6));
   s += P(S.body, 'url(#rs-gloss)');
-  if (S.guard && p.guard !== false) s += P(S.guard, ctx.guard, line('#111', 1.2));
-  s += prim(S.parts, ctx);
+  if (S.guard && p.guard !== false) s += P(S.guard, p.guard || S.guardColor || '#f1efe8', line('#111', 1.2));
+  s += prim(S.parts, hw);
   for (const pu of p.pickups || S.pickups) s += pickup(pu, p);
   for (const [x, y] of S.knobs) s += C(x, y, 12, p.knob || S.knob || '#151515', line('#111', 1)) + C(x - 4, y + 4, 4, '#fff', ' fill-opacity=".4"');
   // neck with frets at real 12-TET spacing, inlays and nut
@@ -285,7 +284,7 @@ function box(p) {
   let body = '', y = 8;
   k.forEach((_, i) => {
     const row = Math.floor(i / per), cnt = Math.min(per, n - row * per);
-    body += knob(w * ((i % per) + .5) / cnt, y + r + row * rowH, r, p.knob || knobFor(c));
+    body += knob(w * ((i % per) + .5) / cnt, y + r + row * rowH, r, knobFor(c));
   });
   y += rows * rowH + 2;
   if (p.display) { const dw = Math.min(56, w * .7); body += R(w / 2 - dw / 2, y, dw, 14, '#0e1512', 2, line('#111', 1)); y += 18; }
@@ -294,8 +293,7 @@ function box(p) {
   const h = Math.max(p.h || 0, Math.ceil((y + (sw ? fr * 2 + 22 : 6)) / 20) * 20);
   if (sw) body += led(w / 2, h - fr * 2 - 14);
   for (let i = 0; i < sw; i++) body += foot(w * (i + .5) / sw, h - fr - 7, fr);
-  const panel = p.panel ? R(3, 3, w - 6, y - 2, p.panel, 4) : '';
-  return { w, h, svg: shell(w, h, c, 5) + panel + body, jacks: sideJacks(w, 20) };
+  return { w, h, svg: shell(w, h, c, 5) + body, jacks: sideJacks(w, 20) };
 }
 
 function round(p) {
@@ -400,7 +398,7 @@ function combo(p, a) {
 function text(p) {
   const lines = String(p.text ?? 'Text').split('\n'), size = p.size || 16, lh = size * 1.3;
   const w = Math.max(20, ...lines.map(l => l.length * size * .62)), h = lines.length * lh;
-  return { w, h, svg: lines.map((l, i) => T(0, lh * (i + 1) - size * .32, l, size, p.color || '#111', { anchor: 'start', weight: p.weight || 700 })).join(''), jacks: {} };
+  return { w, h, svg: lines.map((l, i) => T(0, lh * (i + 1) - size * .32, l, size, p.color || '#111', { anchor: 'start' })).join(''), jacks: {} };
 }
 
 function missing(p, a) {
@@ -414,9 +412,9 @@ function missing(p, a) {
 export const TEMPLATES = { guitar, boss, ts, box, round, wah, multifx, rack, head, cab, combo, text };
 
 function nubs(jacks) {
-  return Object.values(jacks).map(({ x, y, dx, dy, face }) => {
+  return Object.values(jacks).map(({ x, y, dx, face }) => {
     if (face) return C(x, y, 5.5, 'url(#rs-chrome)', line('#111', 1)) + C(x, y, 2.4, '#111');
-    return Math.abs(dx) >= Math.abs(dy) ? R(dx > 0 ? x : x - 6, y - 5, 6, 10, '#a3a9b0', 1, line('#111', .8)) : R(x - 5, dy > 0 ? y : y - 6, 10, 6, '#a3a9b0', 1, line('#111', .8));
+    return R(dx > 0 ? x : x - 6, y - 5, 6, 10, '#a3a9b0', 1, line('#111', .8)); // side jacks are horizontal
   }).join('');
 }
 

@@ -55,16 +55,23 @@ const moved = box({ ...plain, cables: [{ from: 'a', to: 'b', points: moveSegment
 assert.deepEqual([moved[0], moved[moved.length - 1]], [route[0], route[route.length - 1]]);
 for (let i = 1; i < moved.length; i++) assert.ok(moved[i].x === moved[i - 1].x || moved[i].y === moved[i - 1].y, 'diagonal after drag');
 
+// A jack on the face of its own item (like a guitar) facing a jack in line with it:
+// the item's own box must not count as an obstacle, so the cable is one straight run.
+const straightRun = routeCables({ paper: { w: 400, h: 200 }, cables: [{ from: 'a', to: 'b' }] },
+  new Map([['a', [rect(0, 0, 160, 120)]], ['b', [rect(300, 40, 60, 100)]]]),
+  () => ({ a: { x: 120, y: 60, dx: 1, dy: 0 }, b: { x: 300, y: 60, dx: -1, dy: 0 } }))[0];
+assert.equal(straightRun.length, 2, 'own box blocked a straight cable');
+
 // Round trip and hostile input.
 assert.deepEqual(parseRig(JSON.stringify(ex)), ex);
 const evil = parseRig({
   format: 'rigsketch', version: 1, title: '<script>x</script>',
-  items: [{ id: 'a', asset: 'boss-ds-1', x: 0, y: 0, color: '"/><script>', label: '<img onerror=x>', params: { text: '<b>', onload: 'x' } }, { id: 'a', asset: 'dup', x: 1, y: 1 }],
+  items: [{ id: 'a', asset: 'boss-ds-1', x: 0, y: 0, color: '"/><script>', label: '<img onerror=x>', params: { onload: 'x' } }, { id: 'a', asset: 'dup', x: 1, y: 1 }],
   cables: [{ from: 'a', to: 'nope' }],
 });
 assert.equal(evil.items.length, 1);
 assert.equal(evil.items[0].color, undefined);
-assert.deepEqual(evil.items[0].params, { text: '<b>' });
+assert.equal(evil.items[0].params, undefined);
 assert.equal(evil.cables.length, 0);
 const evilSvg = exportSVG(evil, byId);
 assert.ok(!/<script|<img|<b>/.test(evilSvg), 'unescaped markup in output');

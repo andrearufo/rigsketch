@@ -11,7 +11,7 @@ const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
 const snap = v => Math.round(v / GRID) * GRID;
 const dirOf = (dx, dy) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
 const inside = (b, x, y) => b.x0 < x && x < b.x1 && b.y0 < y && y < b.y1;
-export const pad = r => ({ x0: r.x - PAD, y0: r.y - PAD, x1: r.x + r.w + PAD, y1: r.y + r.h + PAD });
+const pad = r => ({ x0: r.x - PAD, y0: r.y - PAD, x1: r.x + r.w + PAD, y1: r.y + r.h + PAD });
 
 // First grid point past the item's padded box, walking out of the jack.
 function exit(j, boxes) {
@@ -60,7 +60,8 @@ export function moveSegment(full, k, d) {
 // Route every cable. `rects` maps item id -> [item rect, caption rect, ...] in world px.
 // `jacks(cable)` returns {a, b} world jacks or null. Returns one full point list per cable.
 export function routeCables(rig, rects, jacks) {
-  const all = [...rects.values()].flat().map(pad);
+  const padded = new Map([...rects].map(([id, r]) => [id, r.map(pad)])); // one object per box, so `own` can match `all`
+  const all = [...padded.values()].flat();
   let minX = 0, minY = 0, maxX = rig.paper.w, maxY = rig.paper.h;
   for (const b of all) { minX = Math.min(minX, b.x0); minY = Math.min(minY, b.y0); maxX = Math.max(maxX, b.x1); maxY = Math.max(maxY, b.y1); }
   minX = snap(minX) - 5 * GRID; minY = snap(minY) - 5 * GRID; maxX = snap(maxX) + 5 * GRID; maxY = snap(maxY) + 5 * GRID;
@@ -127,7 +128,7 @@ export function routeCables(rig, rects, jacks) {
   return rig.cables.map(c => {
     const j = jacks(c);
     if (!j) return null;
-    const ownA = (rects.get(c.from) || []).map(pad), ownB = (rects.get(c.to) || []).map(pad);
+    const ownA = padded.get(c.from) || [], ownB = padded.get(c.to) || [];
     const { a, b } = j;
     let full;
     if (c.points) full = manual(a, exit(a, ownA.slice(0, 1)), c.points, exit(b, ownB.slice(0, 1)), b);

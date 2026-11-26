@@ -48,10 +48,8 @@ function replace(r) {
   sel = null; draw(); inspector(); fit();
 }
 function selected() {
-  if (!sel) return rig;
-  if (sel.kind === 'item') return find(sel.id);
-  if (sel.kind === 'cable') return rig.cables[sel.i];
-  return rig;
+  if (sel?.kind === 'item') return find(sel.id);
+  return sel?.kind === 'cable' ? rig.cables[sel.i] : rig;
 }
 function select(s) { sel = s; inspector(); }
 
@@ -104,7 +102,7 @@ svg.addEventListener('pointerdown', e => {
   } else if (seg && last.routes?.[+cable.dataset.cable]) {
     const i = +cable.dataset.cable, full = last.routes[i], k = +seg.dataset.seg;
     select({ kind: 'cable', i });
-    drag = { kind: 'seg', c: rig.cables[i], full, k, horiz: full[k].y === full[k + 1].y, p, d: 0, had: !!rig.cables[i].points };
+    drag = { kind: 'seg', c: rig.cables[i], full, k, horiz: full[k].y === full[k + 1].y, p, d: 0 };
   } else if (cable) {
     select({ kind: 'cable', i: +cable.dataset.cable });
   } else {
@@ -129,7 +127,6 @@ svg.addEventListener('pointermove', e => {
     drag.d = d;
     const pts = moveSegment(drag.full, drag.k, d);
     if (pts) drag.c.points = pts;
-    if (!d && !drag.had) delete drag.c.points;
   }
   else { temp.x = p.x; temp.y = p.y; }
   draw();
@@ -194,13 +191,6 @@ function duplicate() {
   rig.items.push(it);
   select({ kind: 'item', id: it.id }); commit(); draw();
 }
-function restack(front) {
-  const i = rig.items.findIndex(x => x.id === sel?.id);
-  if (i < 0) return;
-  const [it] = rig.items.splice(i, 1);
-  front ? rig.items.push(it) : rig.items.unshift(it);
-  commit(); draw();
-}
 
 addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, select')) return;
@@ -220,14 +210,10 @@ addEventListener('keydown', e => {
 });
 
 // ---------- library ----------
-const thumbs = new Map();
-function thumb(a) {
-  if (!thumbs.has(a.id)) {
-    const g = renderAsset(a), pad = 6;
-    thumbs.set(a.id, `<svg viewBox="${-pad} ${-pad} ${g.w + pad * 2} ${g.h + pad * 2}" aria-hidden="true">${g.svg}</svg>`);
-  }
-  return thumbs.get(a.id);
-}
+const thumbs = Object.fromEntries(catalog.map(a => {
+  const g = renderAsset(a);
+  return [a.id, `<svg viewBox="-6 -6 ${g.w + 12} ${g.h + 12}" aria-hidden="true">${g.svg}</svg>`];
+}));
 function library() {
   const q = $('#search').value.trim().toLowerCase(), terms = q.split(/\s+/).filter(Boolean);
   const list = catalog
@@ -237,7 +223,7 @@ function library() {
   let html = '', brand = null;
   for (const a of list) {
     if (a.brand !== brand) { brand = a.brand; html += `<h3>${esc(brand)}</h3>`; }
-    html += `<button class="asset" draggable="true" data-asset="${a.id}" title="Click or drag onto the canvas">${thumb(a)}<span>${esc(a.model)}<small>${esc(a.kind || '')}</small></span></button>`;
+    html += `<button class="asset" draggable="true" data-asset="${a.id}" title="Click or drag onto the canvas">${thumbs[a.id]}<span>${esc(a.model)}<small>${esc(a.kind || '')}</small></span></button>`;
   }
   const url = `${REPO}/issues/new?template=asset-request.yml&title=${encodeURIComponent('[Asset] ' + q)}&model=${encodeURIComponent(q)}`;
   html += `<p class="req">${list.length ? 'Missing something?' : `No match for “${esc(q)}”.`} <a href="${url}" target="_blank" rel="noopener">Request a new asset →</a></p>`;
@@ -282,7 +268,7 @@ function inspector() {
     h += `<div class="f"><span>Colour</span><div class="row">${finishes}<input type="color" data-k="color" value="${hex6(o.color || a.params?.color)}"><button type="button" data-act="resetColor">Reset</button></div></div>`;
     if (a.category === 'guitar') h += check('Left-handed', 'flip', o.flip);
     if (a.template !== 'text') h += check('Show caption', 'caption', o.caption ?? true);
-    h += `<div class="actions"><button data-act="front">Bring to front</button><button data-act="back">Send to back</button><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete</button></div>`;
+    h += `<div class="actions"><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete</button></div>`;
   } else if (sel?.kind === 'cable') {
     const A = find(o.from), B = find(o.to), nm = it => esc(byId[it?.asset]?.model || it?.asset);
     h = `<h2>Cable</h2><p class="muted">${nm(A)} → ${nm(B)}</p>`
@@ -316,7 +302,7 @@ insp.addEventListener('change', e => { if (e.target.dataset.k) commit(); });
 insp.addEventListener('click', e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   const acts = {
-    del: remove, dup: duplicate, front: () => restack(true), back: () => restack(false),
+    del: remove, dup: duplicate,
     resetColor: () => { delete selected().color; commit(); draw(); inspector(); },
     reroute: () => { delete selected().points; commit(); draw(); inspector(); },
   };
