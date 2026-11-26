@@ -8,7 +8,7 @@ import { routeCables, moveSegment } from '../js/route.js';
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const catalog = JSON.parse(read('../assets/catalog.json'));
 const byId = {};
-const clean = (svg, what) => assert.ok(!/NaN|undefined|Infinity/.test(svg), `bad numbers in ${what}`);
+const clean = (svg, what) => assert.ok(!/NaN|undefined|Infinity|\{\{/.test(svg), `bad numbers or placeholders in ${what}`);
 
 for (const a of catalog) {
   assert.match(a.id, /^[a-z0-9-]+$/, `bad id ${a.id}`);

@@ -77,6 +77,10 @@ Assets are data, not drawings: each entry in [`assets/catalog.json`](assets/cata
 | `head`, `combo`, `cab` | amps | `color` (tolex), `panel`, `grille`, `weave`, `knobs`, `speakers`, `logo`, `logoColor`, `logoPos`, `italic` |
 | `text` | free text | `size` |
 
+### Guitar drawings
+
+Guitars with an `art` param use a public-domain (CC0) drawing from [`assets/art/`](assets/art): the body and pickguard are recoloured, everything else is drawn as is. To add one, drop the SVG in `assets/art/`, add it to `SOURCES` in [`tools/build-art.mjs`](tools/build-art.mjs) (ids of the body and pickguard elements, credit), run `node tools/build-art.mjs`, and set its output jack in `ART_JACK` in `js/draw.js`. Only CC0 or public-domain drawings, please. The other guitars are drawn from their real dimensions by the `shape` templates.
+
 Then run the checks and open a pull request:
 
 ```bash
@@ -84,6 +88,10 @@ node test/check.mjs
 ```
 
 Sizes are multiples of the 20 px grid and jacks sit on grid lines (the check enforces it). Brand and model names appear as plain text only, to identify the gear. No logos or trademarks are reproduced, and all drawings are generic and stylised. Rigsketch is not affiliated with any of the brands listed.
+
+## Credits
+
+Guitar drawings of the Stratocaster, Les Paul, Jazz Bass and Jag-Stang by **piemaster**, from [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Fender_Stratocaster.svg); SG, Explorer, Flying V and Jet Firebird by **piemaster**, from [Openclipart](https://openclipart.org/detail/16718). All CC0 (public domain): credited with thanks, not by obligation.
 
 ## Run locally
 
