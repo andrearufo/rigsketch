@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rigsketch — draw your guitar rig</title>
+<meta name="description" content="Draw your guitar rig in the browser: guitars, pedalboard, amps and cables. Export PNG/SVG, save and share as JSON. Free and open source.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 30C8 22 3 14 3 9c0-4 6-6 13-6s13 2 13 6c0 5-5 13-13 21z' fill='%23c62828'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <strong class="logo">Rig<span>sketch</span></strong>
+  <button data-action="new" title="Start an empty rig">New</button>
+  <label class="btn" title="Open a .rig.json file">Open<input type="file" id="open" accept=".json,application/json" hidden></label>
+  <button data-action="save" title="Download the rig as .rig.json">Save</button>
+  <span class="sep"></span>
+  <button data-action="png">Export PNG</button>
+  <button data-action="svg">Export SVG</button>
+  <span class="sep"></span>
+  <button data-action="undo" title="Undo (⌘/Ctrl+Z)">Undo</button>
+  <button data-action="redo" title="Redo (⇧⌘/Ctrl+Z)">Redo</button>
+  <button data-action="example">Example</button>
+  <span class="grow"></span>
+  <a id="request" class="cta" target="_blank" rel="noopener">Request an asset</a>
+  <a href="https://github.com/andrearufo/rigsketch" target="_blank" rel="noopener">GitHub</a>
+</header>
+<main>
+  <aside id="library">
+    <div class="top">
+      <input type="search" id="search" placeholder="Search gear…" aria-label="Search gear">
+      <nav id="cats" aria-label="Categories"></nav>
+    </div>
+    <div id="assets"></div>
+  </aside>
+  <section id="stage">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" aria-label="Rig canvas"></svg>
+    <div class="zoom"><button data-z="out" aria-label="Zoom out">−</button><span id="zoomval">100%</span><button data-z="in" aria-label="Zoom in">+</button><button data-z="fit">Fit</button></div>
+  </section>
+  <aside id="inspector"></aside>
+</main>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

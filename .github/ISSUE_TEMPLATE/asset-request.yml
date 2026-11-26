@@ -1,0 +1,65 @@
+name: Asset request
+description: Ask for a new guitar, pedal, amp or other piece of gear in the library.
+title: "[Asset] "
+labels: ["asset-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping the library grow! One asset per request, please.
+        Tip: until it is added, the **Custom › Pedal** asset lets you set any name, knobs and colour.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Guitar / bass
+        - Pedal
+        - Amp head / combo
+        - Cabinet
+        - Multi-FX / rack
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: brand
+    attributes:
+      label: Brand
+      placeholder: "e.g. Electro-Harmonix"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: "e.g. Big Muff Pi (NYC reissue)"
+    validations:
+      required: true
+  - type: input
+    id: kind
+    attributes:
+      label: Type
+      placeholder: "e.g. Fuzz, Delay, 4x12 cabinet"
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference photos or links
+      description: A straight-on photo (top view for pedals) helps a lot. Drag images here or paste links.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Colours, knob labels, number of footswitches, size… anything useful.
+      placeholder: |
+        Knobs: VOLUME, TONE, SUSTAIN
+        Colour: silver with red print
+        1 footswitch
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the library and the open issues, and this asset is not there yet.
+          required: true
