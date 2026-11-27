@@ -6,7 +6,7 @@
 // so items snap cleanly and cables can be routed on the grid (see route.js).
 
 import { routeCables, simplify } from './route.js';
-import { ART } from './art.js';
+import { SILHOUETTES } from './silhouettes.js';
 
 export const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 const f = n => Math.round(n * 10) / 10;
@@ -22,8 +22,6 @@ export const FINISHES = {
   'Surf green': '#7fc6a4', 'Shell pink': '#efc3b6', Butterscotch: '#e4b260', Natural: '#e2c28c',
   'Gold top': '#c9a646', Silver: '#b9bdc2', Orange: '#d0611d',
 };
-// `up`: for drawings with y pointing down (the CC0 art); mm-drawn guitars have y up.
-const paint = (c, up) => (GRADIENTS[c] ? `url(#rs-${c}${up ? '-up' : ''})` : c);
 const rgb = c => {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(GRADIENTS[c] || c || '');
   if (!m) return null;
@@ -42,11 +40,10 @@ const knobFor = c => (lum(c) > 70 ? '#151515' : '#5a5d63');
 const BURST_STOPS = {
   sunburst: ['#f2b53e', '#b0501c', '#1f0d05'], cherryburst: ['#eda04a', '#b52a1c', '#3a0a06'], tobacco: ['#d49a4a', '#6a3414', '#140904'],
 };
-const BURSTS = Object.entries(BURST_STOPS).flatMap(([k, [a, b, c]]) => [['', .4], ['-up', .6]].map(([sfx, cy]) =>
-  `<radialGradient id="rs-${k}${sfx}" cx=".5" cy="${cy}" r=".62"><stop offset=".3" stop-color="${a}"/><stop offset=".67" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient>`)).join('\n');
+// One gradient per finish and silhouette, centred on the lower bout of the body.
+const BURSTS = Object.entries(BURST_STOPS).flatMap(([k, [a, b, c]]) => Object.entries(SILHOUETTES).map(([s, { w, h }]) =>
+  `<radialGradient id="rs-${k}-${s}" gradientUnits="userSpaceOnUse" cx="${w / 2}" cy="${f(h * .82)}" r="${f(w * .52)}"><stop offset=".3" stop-color="${a}"/><stop offset=".67" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient>`)).join('');
 
-// Burst gradients are centred low on the body. Guitars are drawn with y pointing up
-// (see guitar()), which flips objectBoundingBox gradients, hence cy below .5.
 export const DEFS = `<defs>
 ${BURSTS}
 <radialGradient id="rs-gloss" cx=".36" cy=".7" r=".75"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".55" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></radialGradient>
@@ -89,167 +86,12 @@ const sideJacks = (w, y, p = {}) => ({
 const shell = (w, h, c, rx = 6) => R(0, 0, w, h, c, rx, line('#111', 2)) + R(0, 0, w, h, 'url(#rs-sheen)', rx);
 
 // ---------- guitars ----------
-// Drawn in real millimetres: x across the body (bass side negative), y up from the
-// butt end, scaled by K. Shapes follow the published body dimensions of each model.
-const K = .45;
-const STRAT = 'M-28 340C-32 368-50 398-66 410C-74 416-84 414-92 408C-112 394-136 372-146 340C-152 318-150 300-144 280C-138 258-138 238-142 215C-148 180-165 150-162 105C-158 40-90 0 0 0C90 0 160 40 162 105C164 150 140 185 136 222C133 252 146 280 144 306C142 330 128 352 108 368C98 376 88 384 80 380C68 374 56 350 42 330C36 322 32 318 28 316Z';
-const STRAT_GUARD = 'M-28 330C-70 338-108 318-114 278C-120 236-100 196-98 160C-96 120-84 92-50 84L40 70C80 52 118 70 122 108C126 150 114 180 112 216C110 254 118 284 96 306C76 324 52 326 28 318Z';
-const OFFSET = 'M-28 340C-34 375-55 412-74 426C-84 432-96 430-104 424C-128 404-152 380-160 348C-166 320-150 296-150 270C-150 240-178 210-176 150C-174 60-110 5-20 0C70-5 150 30 166 110C174 160 158 200 150 235C143 262 150 286 144 310C138 334 120 350 102 356C90 360 76 356 64 344C52 332 40 320 28 316Z';
-const JM_GUARD = 'M-28 340C-80 350-130 345-140 300C-148 262-140 232-148 192C-155 150-140 112-95 96L60 80C110 72 148 100 148 150C148 200 128 230 128 270C128 300 110 318 70 318L28 315Z';
-const TOM = (y = 115) => [['r', 0, y, 80, 12, 3, 'hw'], ['r', 0, y - 37, 92, 14, 7, 'hw']];
-
-const GSHAPES = {
-  strat: {
-    w: 160, h: 440, scale: 648, bridge: 100, heel: 282, frets: 21, body: STRAT, guard: STRAT_GUARD, knob: '#f1efe8',
-    parts: [['r', 0, 97, 74, 36, 3, 'hw'], ['r', 0, 104, 62, 10, 2, '#b9bfc6'], ['c', 92, 210, 6, '#f1efe8']],
-    pickups: [['s', 260], ['s', 197], ['s', 141, -8]], knobs: [[52, 175], [66, 138], [76, 103]],
-    jack: { x: 125, y: 400, face: true },
-  },
-  tele: {
-    w: 160, h: 420, scale: 648, bridge: 65, heel: 250, frets: 21, guardColor: '#151515',
-    body: 'M-28 345C-30 385-60 406-95 404C-135 402-158 370-160 320C-162 270-150 240-150 210C-150 180-165 150-162 100C-158 35-95 0 0 0C95 0 158 35 162 100C165 150 150 180 150 215C150 250 158 270 150 290C140 320 105 330 80 320C55 310 36 300 28 300Z',
-    guard: 'M-28 342C-70 350-110 338-118 298C-125 255-110 220-80 200C-50 185-20 190 34 198L40 260C40 285 34 300 28 302Z',
-    parts: [['r', 0, 95, 82, 110, 6, 'hw'], ['r', 0, 65, 66, 10, 2, '#b9bfc6'], ['r', 108, 105, 32, 125, 16, 'hw', 18], ['c', 96, 143, 5, '#151515']],
-    pickups: [['s', 228, 0, 'url(#rs-chrome)'], ['s', 110, -8]], knobs: [[108, 105], [120, 69]],
-    jack: { x: 153, y: 360 },
-  },
-  semihollow: {
-    w: 200, h: 460, scale: 628, bridge: 150, heel: 320, frets: 22, head: 'gibson', guardColor: '#151515', knob: '#c8962e',
-    body: 'M-28 395C-34 425-60 470-105 472C-150 474-180 440-182 395C-184 350-160 320-162 285C-164 250-200 210-200 150C-198 55-110 0 0 0C110 0 198 55 200 150C200 210 164 250 162 285C160 320 184 350 182 395C180 440 150 474 105 472C60 470 34 425 28 395Z',
-    guard: 'M50 300C70 330 110 360 130 350C150 340 140 300 110 260C90 240 60 250 50 300Z',
-    parts: [
-      ['p', 'M-120 280C-142 240-100 200-125 150', 'none', '#111', 3], ['p', 'M120 280C142 240 100 200 125 150', 'none', '#111', 3],
-      ['c', -120, 280, 5, '#111'], ['c', -125, 150, 5, '#111'], ['c', 120, 280, 5, '#111'], ['c', 125, 150, 5, '#111'],
-      ...TOM(150), ['c', 140, 330, 8, '#efe6cf'], ['c', 140, 330, 3, '#151515'],
-    ],
-    pickups: [['h', 300], ['h', 195]], knobs: [[95, 125], [140, 145], [105, 75], [150, 95]],
-    jack: { x: 158, y: 420, face: true },
-  },
-  prs: {
-    w: 160, h: 440, scale: 635, bridge: 95, heel: 250, frets: 24, head: 'gibson', knob: '#d4b35a',
-    body: 'M-28 336C-32 366-52 396-72 404C-96 414-128 398-142 366C-152 340-140 300-138 262C-136 226-165 185-163 135C-160 50-95 0 0 0C95 0 160 50 163 135C165 185 138 222 136 255C134 285 146 312 136 336C126 358 108 372 90 370C70 368 52 345 28 320Z',
-    parts: [['r', 0, 95, 80, 24, 4, 'hw'], ['c', 115, 140, 5, '#151515']],
-    pickups: [['h', 225], ['h', 140]], knobs: [[80, 110], [108, 80]],
-    jack: { x: 153, y: 380 },
-  },
-  offset: {
-    w: 160, h: 440, scale: 648, bridge: 105, heel: 290, frets: 21, body: OFFSET, guard: JM_GUARD, guardColor: '#5b2a17',
-    parts: [['r', 0, 105, 70, 14, 4, 'hw'], ['r', 0, 45, 96, 40, 10, 'hw'], ['r', -120, 300, 60, 22, 6, 'hw']],
-    pickups: [['jm', 255], ['jm', 150]], knobs: [[95, 155], [118, 120]],
-    jack: { x: 132, y: 400, face: true },
-  },
-  dread: {
-    w: 200, h: 500, scale: 645, bridge: 218, heel: 415, frets: 20, head: 'acoustic', guardColor: '#5b2a17',
-    body: 'M-30 505C-90 512-140 495-146 440C-150 400-132 375-134 340C-136 300-198 260-199 170C-200 70-120 0 0 0C120 0 200 70 199 170C198 260 136 300 134 340C132 375 150 400 146 440C140 495 90 512 30 505Z',
-    guard: 'M55 330C70 300 115 290 130 320C145 350 135 400 100 410C75 418 55 390 55 360Z',
-    parts: [['o', 0, 360, 62, '#3a2a1a', 3], ['c', 0, 360, 50, '#1a110b'], ['r', 0, 218, 150, 32, 10, '#2a1a10'], ['r', 0, 224, 70, 4, 1, '#f1efe8']],
-    pickups: [], knobs: [], jack: { x: 163, y: 460, face: true },
-  },
-  pbass: {
-    w: 160, h: 540, scale: 864, bridge: 80, heel: 340, frets: 20, head: 'bass', strings: 4, body: STRAT, guard: STRAT_GUARD, guardColor: '#5b2a17',
-    parts: [['r', 0, 75, 80, 30, 3, 'hw'], ['r', 95, 110, 34, 110, 17, 'hw']],
-    pickups: [['p', 230]], knobs: [[95, 140], [95, 100]],
-    jack: { x: 123, y: 500, face: true },
-  },
-};
-
-const HW = { chrome: 'url(#rs-chrome)', gold: '#d4b35a' };
-const HEAD_COLOR = { fender: '#e3c48d', bass: '#e3c48d', gibson: '#141414', acoustic: '#1e130c' };
-const key = (x, y, hw, r = 0) => (r ? C(x, y, r, hw, line('#111', 1)) : R(x - 9, y - 5.5, 18, 11, hw, 5, line('#111', 1)));
-const post = (x, y) => C(x, y, 4.5, '#dfe3e8', line('#111', .8));
-// Headstocks, in mm with y up from the nut. `edge(y)` is the outline's x on the key side.
-const HEADS = {
-  fender: { d: 'M-21 0C-22 40-27 110-30 150C-32 172-24 190-6 192C12 194 34 188 40 172C44 160 36 150 26 145C16 138 18 120 22 100C26 75 22 30 21 0Z', ys: range(6).map(i => 30 + i * 25), edge: y => -21 - y * .06 },
-  gibson: { d: 'M-22 0L-32 40L-46 168C-47 182-37 190-26 186L0 176L26 186C37 190 47 182 46 168L32 40L22 0Z', ys: [55, 100, 145], edge: y => -32 - (y - 40) * .11, both: true },
-  bass: { d: 'M-22 0C-24 50-30 140-34 180C-36 202-26 220-6 222C14 224 38 216 44 198C48 184 38 172 28 166C18 158 20 138 24 112C28 80 23 30 22 0Z', ys: [35, 80, 125, 170], edge: y => -22 - y * .065, big: true },
-  pointy: { d: 'M-21 0L-21 30L-50 205C-52 216-40 222-32 212L30 90C38 70 26 30 21 0Z', ys: range(6).map(i => 45 + i * 28), edge: y => -21 - Math.max(0, y - 30) * .166 },
-  acoustic: { d: 'M-26 0L-32 175C-32 188-22 195 0 195C22 195 32 188 32 175L26 0Z', ys: [45, 95, 145], edge: y => -26 - y * .034, both: true },
-};
-function headstock(type, c, hw) {
-  const H = HEADS[type];
-  let s = P(H.d, c, line());
-  for (const y of H.ys) {
-    const e = H.edge(y);
-    s += key(e - (H.big ? 14 : 11), y, hw, H.big ? 11 : 0) + post(e + 10, y);
-    if (H.both) s += key(-e + 11, y, hw) + post(-e - 10, y);
-  }
-  return s;
-}
-
-function prim(list, hw) {
-  const col = v => (v === 'hw' ? hw : v);
-  return (list || []).map(([t, ...a]) => {
-    if (t === 'r') {
-      const [x, y, w, h, rx, fill, rot] = a;
-      return R(x - w / 2, y - h / 2, w, h, col(fill), rx, line('#111', 1) + (rot ? ` transform="rotate(${rot} ${x} ${y})"` : ''));
-    }
-    if (t === 'c') return C(a[0], a[1], a[2], col(a[3]), line('#111', .8));
-    if (t === 'o') return C(a[0], a[1], a[2], 'none', line(col(a[3]), a[4]));
-    if (t === 'p') return P(a[0], col(a[1]), line(col(a[2] || 'none'), a[3] || 0) + ' stroke-linecap="round"');
-    return '';
-  }).join('');
-}
-
-function pickup([t, y, a = 0, col], p) {
-  const c = col || p.pickupColor || (t === 'h' ? '#151515' : '#f1efe8');
-  const poles = py => (c.startsWith('url') ? '' : range(6).map(i => C(-25 + i * 10, py, 2.6, '#9aa0a7')).join(''));
-  let g;
-  if (t === 'h') g = (p.ring ? R(-42, y - 24, 84, 48, p.ring, 6, line('#111', 1)) : '') + R(-35, y - 19, 70, 38, c, 4, line('#111', 1)) + poles(y - 9) + poles(y + 9);
-  else if (t === 'p') g = R(-48, y, 48, 20, c, 6, line('#111', 1)) + R(0, y - 22, 48, 20, c, 6, line('#111', 1));
-  else if (t === 'j') g = R(-47, y - 10, 94, 20, c, 7, line('#111', 1));
-  else if (t === 'jm') g = R(-44, y - 22, 88, 44, c, 7, line('#111', 1)) + poles(y);
-  else g = R(-35, y - 9, 70, 18, c, 9, line('#111', 1)) + poles(y);
-  return a ? `<g transform="rotate(${a} 0 ${y})">${g}</g>` : g;
-}
-
-// CC0 drawings (js/art.js), scaled to the item height; body and pickguard recoloured.
-// Output jacks are placed by hand on each drawing, in px of the scaled item.
-const ART_JACK = {
-  strat: { x: 118, y: 400, face: true }, lespaul: { x: 151, y: 380 }, sg: { x: 115, y: 400, face: true },
-  explorer: { x: 150, y: 380, face: true }, flyingv: { x: 155, y: 460, face: true }, jazzbass: { x: 128, y: 500, face: true },
-  jagstang: { x: 122, y: 400, face: true }, gretschjet: { x: 130, y: 420, face: true },
-};
-function artGuitar(p) {
-  const A = ART[p.art], h = p.h || 440, k = (h - 10) / A.h, w = Math.ceil(A.w * k / 20) * 20;
-  const art = A.svg.replace('{{body}}', paint(p.color || A.body, true)).replace('{{guard}}', p.guard === false ? 'none' : p.guard || A.guard);
-  const jack = ART_JACK[p.art] || { x: w, y: h - 60 };
-  return { w, h, svg: `<g transform="translate(${f((w - A.w * k) / 2)} 0) scale(${k.toFixed(4)})">${art}</g>`, jacks: { out: { ...jack, dx: 1, dy: 0 } } };
-}
-
+// Flat silhouettes traced from public-domain drawings (tools/silhouettes.py), filled with
+// the finish: the outline is what tells a Strat from a Les Paul, no parts are drawn.
 function guitar(p) {
-  if (ART[p.art]) return artGuitar(p);
-  const S = GSHAPES[p.shape] || GSHAPES.strat, { w, h } = S;
-  const color = p.color || '#1a1a1a', hw = HW[p.hardware] || HW.chrome;
-  const nut = S.bridge + S.scale, n = S.strings || 6, head = HEADS[p.head] ? p.head : (S.head || 'fender');
-  let s = `<g transform="translate(${w / 2} ${h - 10}) scale(${K} ${-K})">`;
-  s += P(S.body, paint(color), line('#111', p.binding ? 4 : 2.2));
-  if (p.binding) s += P(S.body, 'none', line(p.binding, 1.6));
-  s += P(S.body, 'url(#rs-gloss)');
-  if (S.guard && p.guard !== false) s += P(S.guard, p.guard || S.guardColor || '#f1efe8', line('#111', 1.2));
-  s += prim(S.parts, hw);
-  for (const pu of p.pickups || S.pickups) s += pickup(pu, p);
-  for (const [x, y] of S.knobs) s += C(x, y, 12, p.knob || S.knob || '#151515', line('#111', 1)) + C(x - 4, y + 4, 4, '#fff', ' fill-opacity=".4"');
-  // neck with frets at real 12-TET spacing, inlays and nut
-  const half = y => 21 + (nut - y) / (nut - S.heel) * 7;
-  s += P(`M-28 ${S.heel}L28 ${S.heel}L21 ${nut}L-21 ${nut}Z`, p.board || '#3b2418', line('#111', 1.2));
-  let prev = nut;
-  for (let i = 1; i <= S.frets; i++) {
-    const y = nut - S.scale * (1 - 2 ** (-i / 12));
-    if (y < S.heel) break;
-    s += L(-half(y), y, half(y), y, '#c8ccd2', 1, NS);
-    const m = (y + prev) / 2, dot = p.inlay || '#efe9dc';
-    if ([3, 5, 7, 9, 15, 17, 19, 21].includes(i)) s += C(0, m, 3.5, dot);
-    if (i === 12) s += C(-9, m, 3.5, dot) + C(9, m, 3.5, dot);
-    prev = y;
-  }
-  s += R(-21, nut - 2, 42, 5, '#efe9dc', 0, line('#111', .8));
-  s += `<g transform="translate(0 ${nut})">${headstock(head, p.headColor || HEAD_COLOR[head] || paint(color), hw)}</g>`;
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1) - .5;
-    s += L(t * (n === 4 ? 30 : 35), nut, t * 54, S.bridge, '#eceef1', n === 4 ? 1.1 : .7, NS);
-  }
-  s += '</g>';
-  return { w, h, svg: s, jacks: { out: { ...S.jack, dx: 1, dy: 0 } } };
+  const key = SILHOUETTES[p.shape] ? p.shape : 'st', S = SILHOUETTES[key], c = p.color || '#1a1a1a';
+  const fill = GRADIENTS[c] ? `url(#rs-${c}-${key})` : c;
+  return { w: S.w, h: S.h, svg: P(S.d, fill, line('#111', 1.6)) + P(S.d, 'url(#rs-gloss)'), jacks: { out: { ...S.jack, dx: 1, dy: 0 } } };
 }
 
 // ---------- pedals (no printed text: the caption below names them) ----------
@@ -480,7 +322,7 @@ function plug(j, next) {
 }
 
 function cable(full, i, c, ui, on) {
-  const d = rounded(full), color = on ? '#1e88e5' : paint(c.color || '#1f1f1f');
+  const d = rounded(full), color = on ? '#1e88e5' : (GRADIENTS[c.color] || c.color || '#1f1f1f');
   let s = `<g${ui ? ` data-cable="${i}"` : ''}>`;
   if (ui) s += `<path d="${d}" fill="none" stroke="transparent" stroke-width="16"/>`;
   s += `<path d="${d}" fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${color}" stroke-width="5" stroke-linejoin="round"/>`;

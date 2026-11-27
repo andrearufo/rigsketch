@@ -9,7 +9,7 @@ Draw your guitar rig in the browser: guitars, pedalboard, amps and the cables be
 ## Features
 
 - 100+ assets: Fender, Gibson, PRS, Ibanez, Gretsch, Martin guitars and basses; Marshall, Fender, Vox, Orange, Mesa/Boogie, Peavey, Roland, Boss, Ampeg amps and cabs; Boss, MXR, Ibanez, Dunlop, Electro-Harmonix, ProCo, Klon, Fulltone, Strymon, TC Electronic, Line 6, Digitech and more pedals; multi-FX and rack units.
-- Flat illustrations in the spirit of Guitar Geek: guitars drawn from their real dimensions, pedals without tiny print, the name of every item in a caption underneath.
+- Flat illustrations in the spirit of Guitar Geek: guitars as clean silhouettes in their finish, pedals without tiny print, the name of every item in a caption underneath.
 - Everything snaps to a **20 px grid**.
 - Drag from an output jack to an input jack: the cable **routes itself** with horizontal and vertical runs around your gear. Drag any segment to adjust it.
 - Notes, custom colours and finishes (sunburst, cherry burst…), left-handed guitars, cable labels, free text.
@@ -68,7 +68,7 @@ Assets are data, not drawings: each entry in [`assets/catalog.json`](assets/cata
 
 | Template | For | Main params |
 |---|---|---|
-| `guitar` | guitars & basses | `shape` (strat, tele, lespaul, sg, semihollow, prs, offset, explorer, flyingv, dread, pbass, jbass), `head` (fender, gibson, bass, pointy, acoustic), `color`, `guard`, `board`, `pickups`, `pickupColor`, `ring`, `binding`, `hardware`, `knob` |
+| `guitar` | guitars & basses | `shape` (st, t, sc, sg, superstrat, explorer, v, offset, jet, jbass, pbass, acoustic), `color` |
 | `boss` | Boss compact pedals | `color`, `knobs` (count), `display`, `sliders` |
 | `ts` | Tube Screamer-style | `color`, `knobs` |
 | `box` | any stompbox | `w`, `h` (multiples of 20), `color`, `knobs`, `switches`, `display`, `accent` |
@@ -79,9 +79,9 @@ Assets are data, not drawings: each entry in [`assets/catalog.json`](assets/cata
 | `head`, `combo`, `cab` | amps | `color` (tolex), `panel`, `grille`, `weave`, `knobs`, `speakers`, `logo`, `logoColor`, `logoPos`, `italic` |
 | `text` | free text | `size` |
 
-### Guitar drawings
+### Guitar silhouettes
 
-Guitars with an `art` param use a public-domain (CC0) drawing from [`assets/art/`](assets/art): the body and pickguard are recoloured, everything else is drawn as is. To add one, drop the SVG in `assets/art/`, add it to `SOURCES` in [`tools/build-art.mjs`](tools/build-art.mjs) (ids of the body and pickguard elements, credit), run `node tools/build-art.mjs`, and set its output jack in `ART_JACK` in `js/draw.js`. Only CC0 or public-domain drawings, please. The other guitars are drawn from their real dimensions by the `shape` templates.
+Guitars are flat silhouettes, one per body shape, filled with the colour or finish: the outline tells a Strat from a Les Paul, no parts are drawn. They are traced from public-domain drawings in [`assets/art/`](assets/art) by [`tools/silhouettes.py`](tools/silhouettes.py), which renders each drawing, fills it, traces it with potrace and scales it to the instrument's real length. To add a shape, drop a CC0 or public-domain drawing in `assets/art/`, add it to `SOURCES` with its real length in mm and a credit, and run `python3 tools/silhouettes.py` (needs Pillow, potrace and Chrome). Models without a free drawing of their own use the closest shape (the ES-335 uses the single cut, the PRS the ST).
 
 Then run the checks and open a pull request:
 
@@ -93,7 +93,7 @@ Extra jacks: `stereo` (second output), `stereoIn` (second input), `loop` (FX sen
 
 ## Credits
 
-Guitar drawings of the Stratocaster, Les Paul, Jazz Bass and Jag-Stang by **piemaster**, from [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Fender_Stratocaster.svg); SG, Explorer, Flying V and Jet Firebird by **piemaster**, from [Openclipart](https://openclipart.org/detail/16718). All CC0 (public domain): credited with thanks, not by obligation.
+Guitar silhouettes traced from public-domain drawings, credited with thanks: Stratocaster, Telecaster and Les Paul by **GDJ**, superstrat and acoustic by **J_Alves** (Openclipart, CC0); SG, Explorer, Flying V, Jag-Stang, Jet and Jazz Bass by **piemaster** (Openclipart and Wikimedia Commons, CC0); Precision Bass from Leo Fender's 1953 US design patent D169062 (public domain).
 
 ## Run locally
 
